@@ -418,6 +418,7 @@ xgetfiletime(void)
     return current_time;
 }
 
+#if 0
 static int
 clock_gettime(clock_t id, struct timespec *ts)
 {
@@ -451,6 +452,7 @@ clock_gettime(clock_t id, struct timespec *ts)
 
     return 0;
 }
+#endif
 #endif /* _WIN32 */
 
 #if defined(__MACH__) && !defined(HAVE_CLOCK_GETTIME)

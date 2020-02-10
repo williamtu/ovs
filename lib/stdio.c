@@ -46,7 +46,7 @@ ovs_vsnprintf(char *s, size_t n, const char *format, va_list args)
     }
     return needed;
 }
-
+#if 0
 int
 fseeko(FILE *stream, off_t offset, int whence)
 {
@@ -57,4 +57,5 @@ fseeko(FILE *stream, off_t offset, int whence)
     }
     return error;
 }
+#endif
 #endif  /* _WIN32 */

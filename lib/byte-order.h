@@ -24,13 +24,18 @@
 
 #ifdef _WIN32
 #include <winsock2.h>
-unsigned __int64 ntohll(
+static unsigned __int64 ntohll(
   unsigned __int64 Value
-  );
-unsigned __int64 htonll(
+  )
+{
+    return 0; //FIXME
+}
+static unsigned __int64 htonll(
   unsigned __int64 Value
-  );
-
+  )
+{
+    return 0; //FIXME
+}
 
 #endif
 

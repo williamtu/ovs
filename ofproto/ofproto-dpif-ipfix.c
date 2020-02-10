@@ -309,7 +309,7 @@ struct ipfix_data_record_flow_key_common {
     ovs_be16 ethernet_type;  /* ETHERNET_TYPE */
     uint8_t ethernet_header_length;  /* ETHERNET_HEADER_LENGTH */
 });
-BUILD_ASSERT_DECL(sizeof(struct ipfix_data_record_flow_key_common) == 20);
+//BUILD_ASSERT_DECL(sizeof(struct ipfix_data_record_flow_key_common) == 20);
 
 /* Part of data record flow key for interface information. Since some of the
  * elements have variable length, members of this structure should be appended
@@ -323,8 +323,8 @@ struct ipfix_data_record_flow_key_iface {
     uint8_t if_descr_len; /* Variable length element: INTERFACE_DESCRIPTION */
     char *if_descr;
 });
-BUILD_ASSERT_DECL(sizeof(struct ipfix_data_record_flow_key_iface) ==
-                  10 + 2 * sizeof(char *));
+//BUILD_ASSERT_DECL(sizeof(struct ipfix_data_record_flow_key_iface) ==
+ //                 10 + 2 * sizeof(char *));
 
 /* Part of data record flow key for VLAN entities. */
 OVS_PACKED(
@@ -402,7 +402,7 @@ struct ipfix_data_record_flow_key_tunnel {
     uint8_t tunnel_key_length;  /* length of TUNNEL_KEY */
     uint8_t tunnel_key[];  /* data of  TUNNEL_KEY */
 });
-BUILD_ASSERT_DECL(sizeof(struct ipfix_data_record_flow_key_tunnel) == 15);
+//BUILD_ASSERT_DECL(sizeof(struct ipfix_data_record_flow_key_tunnel) == 15);
 
 /* Cf. IETF RFC 5102 Section 5.11.3. */
 enum ipfix_flow_end_reason {
@@ -422,7 +422,7 @@ struct ipfix_data_record_exporter_stats {
     /* Fields */
     ovs_be64 not_sent_packet_total_count;   /* NOT_SENT_PACKET_TOTAL_COUNT */
 });
-BUILD_ASSERT_DECL(sizeof(struct ipfix_data_record_exporter_stats) == 12);
+//BUILD_ASSERT_DECL(sizeof(struct ipfix_data_record_exporter_stats) == 12);
 
 /* Part of data record for common aggregated elements. */
 OVS_PACKED(

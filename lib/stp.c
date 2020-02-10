@@ -70,7 +70,7 @@ struct stp_config_bpdu {
     ovs_be16 hello_time;           /* 8.5.1.7: Time between BPDU generation. */
     ovs_be16 forward_delay;        /* 8.5.1.8: State progression delay. */
 });
-BUILD_ASSERT_DECL(sizeof(struct stp_config_bpdu) == 35);
+//BUILD_ASSERT_DECL(sizeof(struct stp_config_bpdu) == 35);
 
 struct stp_tcn_bpdu {
     struct stp_bpdu_header header; /* Type STP_TYPE_TCN. */

@@ -16,12 +16,13 @@
 
 #ifndef WINDEFS_H
 #define WINDEFS_H 1
-
+#define _WIN32_WINNT 0x600
 #include <winsock2.h>
 #include <in6addr.h>
 #include <ws2tcpip.h>
 #include <windows.h>
 #include <basetsd.h>
+#include <shlwapi.h>
 #include <io.h>
 #include <inttypes.h>
 #include <sys/types.h>
@@ -47,5 +48,26 @@ char *strsep(char **stringp, const char *delim);
 #define random rand
 
 #define EPFNOSUPPORT WSAEPFNOSUPPORT
+
+#if 0
+struct pollfd {
+    int fd;
+    short events;
+    short revents;
+};
+#define POLLRDNORM 0x0100
+#define POLLRDBAND 0x0200
+#define POLLIN    (POLLRDNORM | POLLRDBAND)
+#define POLLPRI    0x0400
+
+#define POLLWRNORM 0x0010
+#define POLLOUT   (POLLWRNORM)
+#define POLLWRBAND 0x0020
+
+#define POLLERR    0x0001
+#define POLLHUP    0x0002
+#define POLLNVAL   0x0004
+#endif
+
 
 #endif /* windefs.h */

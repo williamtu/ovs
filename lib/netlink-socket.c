@@ -39,6 +39,10 @@
 #include "util.h"
 #include "openvswitch/vlog.h"
 
+#ifdef _WIN32
+#include <mswsock.h>
+#endif
+
 VLOG_DEFINE_THIS_MODULE(netlink_socket);
 
 COVERAGE_DEFINE(netlink_overflow);
