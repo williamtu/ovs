@@ -17,15 +17,16 @@
 #ifndef WINDEFS_H
 #define WINDEFS_H 1
 
-#include <Winsock2.h>
-#include <In6addr.h>
-#include <WS2tcpip.h>
+#include <winsock2.h>
+#include <in6addr.h>
+#include <ws2tcpip.h>
 #include <windows.h>
-#include <BaseTsd.h>
+#include <basetsd.h>
 #include <io.h>
 #include <inttypes.h>
+#include <sys/types.h>
 
-#pragma comment(lib, "advapi32")
+//#pragma comment(lib, "advapi32")
 
 #undef INET6_ADDRSTRLEN
 #define INET6_ADDRSTRLEN 46
@@ -38,7 +39,7 @@
 #define u_int32_t uint32_t
 #define u_int64_t uint64_t
 
-typedef int pid_t;
+//typedef int pid_t;
 
 char *strsep(char **stringp, const char *delim);
 

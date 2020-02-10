@@ -22,6 +22,18 @@
 #include <inttypes.h>
 #include "openvswitch/types.h"
 
+#ifdef _WIN32
+#include <winsock2.h>
+unsigned __int64 ntohll(
+  unsigned __int64 Value
+  );
+unsigned __int64 htonll(
+  unsigned __int64 Value
+  );
+
+
+#endif
+
 #ifndef __CHECKER__
 #if !(defined(_WIN32) || defined(htonll))
 static inline ovs_be64

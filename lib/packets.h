@@ -481,7 +481,7 @@ struct snap_header {
     uint8_t snap_org[3];
     ovs_be16 snap_type;
 });
-BUILD_ASSERT_DECL(SNAP_HEADER_LEN == sizeof(struct snap_header));
+//BUILD_ASSERT_DECL(SNAP_HEADER_LEN == sizeof(struct snap_header));
 
 #define LLC_SNAP_HEADER_LEN (LLC_HEADER_LEN + SNAP_HEADER_LEN)
 OVS_PACKED(
@@ -489,7 +489,7 @@ struct llc_snap_header {
     struct llc_header llc;
     struct snap_header snap;
 });
-BUILD_ASSERT_DECL(LLC_SNAP_HEADER_LEN == sizeof(struct llc_snap_header));
+//BUILD_ASSERT_DECL(LLC_SNAP_HEADER_LEN == sizeof(struct llc_snap_header));
 
 #define VLAN_VID_MASK 0x0fff
 #define VLAN_VID_SHIFT 0
@@ -749,18 +749,20 @@ struct ip_header {
 BUILD_ASSERT_DECL(IP_HEADER_LEN == sizeof(struct ip_header));
 
 /* ICMPv4 types. */
+#include <iprtrmib.h>
+#ifndef __ROUTING_IPRTRMIB_H__ 
 #define ICMP4_ECHO_REPLY 0
 #define ICMP4_DST_UNREACH 3
-#define ICMP4_SOURCEQUENCH 4
 #define ICMP4_REDIRECT 5
 #define ICMP4_ECHO_REQUEST 8
 #define ICMP4_TIME_EXCEEDED 11
 #define ICMP4_PARAM_PROB 12
+#endif
+#define ICMP4_SOURCEQUENCH 4
 #define ICMP4_TIMESTAMP 13
 #define ICMP4_TIMESTAMPREPLY 14
 #define ICMP4_INFOREQUEST 15
 #define ICMP4_INFOREPLY 16
-
 #define ICMP_HEADER_LEN 8
 struct icmp_header {
     uint8_t icmp_type;

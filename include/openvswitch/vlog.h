@@ -196,6 +196,15 @@ void vlog_rate_limit(const struct vlog_module *, enum vlog_level,
  *
  * Guaranteed to preserve errno.
  */
+#ifdef WIN32
+#define VLOG_FATAL(...)
+#define VLOG_ABORT(...)
+#define VLOG_EMER(...)
+#define VLOG_ERR(...)
+#define VLOG_WARN(...)
+#define VLOG_INFO(...) 
+#define VLOG_DBG(...) 
+#else
 #define VLOG_FATAL(...) vlog_fatal(&this_module, __VA_ARGS__)
 #define VLOG_ABORT(...) vlog_abort(&this_module, __VA_ARGS__)
 #define VLOG_EMER(...) VLOG(VLL_EMER, __VA_ARGS__)
@@ -203,7 +212,7 @@ void vlog_rate_limit(const struct vlog_module *, enum vlog_level,
 #define VLOG_WARN(...) VLOG(VLL_WARN, __VA_ARGS__)
 #define VLOG_INFO(...) VLOG(VLL_INFO, __VA_ARGS__)
 #define VLOG_DBG(...) VLOG(VLL_DBG, __VA_ARGS__)
-
+#endif
 /* More convenience macros, for testing whether a given level is enabled.  When
  * constructing a log message is expensive, this enables it to be skipped. */
 #define VLOG_IS_ERR_ENABLED() vlog_is_enabled(&this_module, VLL_ERR)

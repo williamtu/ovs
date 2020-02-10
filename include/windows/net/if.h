@@ -17,10 +17,12 @@
 #ifndef __NET_IF_H
 #define __NET_IF_H 1
 
-#include <Netioapi.h>
+#include <ifdef.h>
+//#include <ntddndis.h>
+#include <netioapi.h>
 
 #define IFNAMSIZ IF_NAMESIZE
-
+#define IF_NAMESIZE IF_MAX_STRING_SIZE
 enum {
     IFLA_UNSPEC,
     IFLA_ADDRESS,

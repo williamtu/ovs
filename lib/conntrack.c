@@ -22,6 +22,8 @@
 #include <netinet/icmp6.h>
 #include <string.h>
 
+//#include <ws2tcpip.h> //inet_ntop
+
 #include "bitmap.h"
 #include "conntrack.h"
 #include "conntrack-private.h"
@@ -45,6 +47,9 @@ VLOG_DEFINE_THIS_MODULE(conntrack);
 COVERAGE_DEFINE(conntrack_full);
 COVERAGE_DEFINE(conntrack_long_cleanup);
 
+#ifdef WIN32
+#define inet_ntop(a, b, c, d)
+#endif
 struct conn_lookup_ctx {
     struct conn_key key;
     struct conn *conn;
@@ -240,6 +245,9 @@ static void
 ct_print_conn_info(const struct conn *c, const char *log_msg,
                    enum vlog_level vll, bool force, bool rl_on)
 {
+#ifdef WIN32
+    #define CT_VLOG(RL_ON, LEVEL, ...)
+#else
 #define CT_VLOG(RL_ON, LEVEL, ...)                                          \
     do {                                                                    \
         if (RL_ON) {                                                        \
@@ -249,6 +257,7 @@ ct_print_conn_info(const struct conn *c, const char *log_msg,
             vlog(&this_module, LEVEL, __VA_ARGS__);                         \
         }                                                                   \
     } while (0)
+#endif
 
     if (OVS_UNLIKELY(force || vlog_is_enabled(&this_module, vll))) {
         if (c->key.dl_type == htons(ETH_TYPE_IP)) {
@@ -1500,8 +1509,8 @@ ct_sweep(struct conntrack *ct, long long now, size_t limit)
     }
 
 out:
-    VLOG_DBG("conntrack cleanup %"PRIuSIZE" entries in %lld msec", count,
-             time_msec() - now);
+//    VLOG_DBG("conntrack cleanup %"PRIuSIZE" entries in %lld msec", count,
+//             time_msec() - now);
     ovs_mutex_unlock(&ct->ct_lock);
     return min_expiration;
 }
@@ -2835,8 +2844,8 @@ repl_ftp_v4_addr(struct dp_packet *pkt, ovs_be32 v4_addr_rep,
     }
 
     char v4_addr_str[INET_ADDRSTRLEN] = {0};
-    ovs_assert(inet_ntop(AF_INET, &v4_addr_rep, v4_addr_str,
-                         sizeof v4_addr_str));
+//    ovs_assert(inet_ntop(AF_INET, &v4_addr_rep, v4_addr_str,
+//                         sizeof v4_addr_str));
     repl_bytes(v4_addr_str, '.', ',');
     modify_packet(pkt, ftp_data_start + addr_offset_from_ftp_data_start,
                   addr_size, v4_addr_str, strlen(v4_addr_str),
@@ -3164,8 +3173,8 @@ repl_ftp_v6_addr(struct dp_packet *pkt, union ct_addr v6_addr_rep,
     }
 
     char v6_addr_str[INET6_ADDRSTRLEN] = {0};
-    ovs_assert(inet_ntop(AF_INET6, &v6_addr_rep.ipv6, v6_addr_str,
-                         sizeof v6_addr_str));
+//    ovs_assert(inet_ntop(AF_INET6, &v6_addr_rep.ipv6, v6_addr_str,
+//                         sizeof v6_addr_str));
     modify_packet(pkt, ftp_data_start + addr_offset_from_ftp_data_start,
                   addr_size, v6_addr_str, strlen(v6_addr_str),
                   orig_used_size);

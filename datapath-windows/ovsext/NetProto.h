@@ -139,7 +139,7 @@ typedef UINT64 IP6UnitLength;
 #define ICMP4_MASK_REPLY         18      /* Address Mask Reply           */
 
 /* ICMPv6 types. */
-#define ICMP6_DST_UNREACH          1
+//#define ICMP6_DST_UNREACH          1
 #define ICMP6_PACKET_TOO_BIG       2
 #define ICMP6_TIME_EXCEEDED        3
 #define ICMP6_PARAM_PROB           4

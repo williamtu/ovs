@@ -21,7 +21,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #ifdef _WIN32
-#include <Wincrypt.h>
+#include <wincrypt.h>
 #endif
 #include "util.h"
 #include "socket-util.h"

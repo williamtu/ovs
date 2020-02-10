@@ -83,7 +83,7 @@ struct ccm {
     /* TLV space. */
     uint8_t end_tlv;
 });
-BUILD_ASSERT_DECL(CCM_LEN == sizeof(struct ccm));
+//BUILD_ASSERT_DECL(CCM_LEN == sizeof(struct ccm));
 
 struct cfm {
     const char *name;           /* Name of this CFM object. */

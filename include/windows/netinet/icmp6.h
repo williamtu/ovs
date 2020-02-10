@@ -86,6 +86,8 @@ struct icmp6_hdr {
 #define icmp6_seq	icmp6_data16[1]		/* echo request/reply */
 #define icmp6_maxdelay	icmp6_data16[0]		/* mcast group membership */
 
+#include <iprtrmib.h>
+#ifndef __ROUTING_IPRTRMIB_H__
 #define ICMP6_DST_UNREACH		1	/* dest unreachable, codes: */
 #define ICMP6_PACKET_TOO_BIG		2	/* packet too big */
 #define ICMP6_TIME_EXCEEDED		3	/* time exceeded, code: */
@@ -93,6 +95,8 @@ struct icmp6_hdr {
 
 #define ICMP6_ECHO_REQUEST		128	/* echo service */
 #define ICMP6_ECHO_REPLY		129	/* echo reply */
+#endif
+
 #define MLD_LISTENER_QUERY		130 	/* multicast listener query */
 #define MLD_LISTENER_REPORT		131	/* multicast listener report */
 #define MLD_LISTENER_DONE		132	/* multicast listener done */
