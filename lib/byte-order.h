@@ -22,6 +22,22 @@
 #include <inttypes.h>
 #include "openvswitch/types.h"
 
+#ifdef _WIN32
+static unsigned __int64 ntohll(
+  unsigned __int64 n
+  )
+{
+    return htonl(1) == 1 ? n : ((uint64_t) ntohl(n) << 32) | ntohl(n >> 32);
+}
+static unsigned __int64 htonll(
+  unsigned __int64 n
+  )
+{
+    return htonl(1) == 1 ? n : ((uint64_t) htonl(n) << 32) | htonl(n >> 32);
+}
+
+#endif
+
 #ifndef __CHECKER__
 #if !(defined(_WIN32) || defined(htonll))
 static inline ovs_be64

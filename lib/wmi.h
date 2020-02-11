@@ -18,7 +18,7 @@
 #define WMI_H 1
 
 #include <windefs.h>
-#include <Wbemidl.h>
+#include <wbemidl.h>
 
 static inline void fill_context(IWbemContext *pContext)
 {

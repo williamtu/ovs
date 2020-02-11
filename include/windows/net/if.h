@@ -17,7 +17,7 @@
 #ifndef __NET_IF_H
 #define __NET_IF_H 1
 
-#include <Netioapi.h>
+#include <netioapi.h>
 
 #define IFNAMSIZ IF_NAMESIZE
 

@@ -30,20 +30,20 @@ bool dpif_netlink_rtnl_probe_oot_tunnels(void);
 #ifndef __linux__
 /* Dummy implementations for non Linux builds. */
 
-static inline int
+inline int
 dpif_netlink_rtnl_port_create(struct netdev *netdev OVS_UNUSED)
 {
     return EOPNOTSUPP;
 }
 
-static inline int
+inline int
 dpif_netlink_rtnl_port_destroy(const char *name OVS_UNUSED,
                                const char *type OVS_UNUSED)
 {
     return EOPNOTSUPP;
 }
 
-static inline bool
+inline bool
 dpif_netlink_rtnl_probe_oot_tunnels(void)
 {
     return true;

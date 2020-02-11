@@ -111,7 +111,7 @@ AC_DEFUN([OVS_CHECK_WIN32],
             fi
             PTHREAD_INCLUDES=-I$withval/include
             PTHREAD_LDFLAGS=-L$PTHREAD_WIN32_DIR
-            PTHREAD_LIBS="-lpthreadVC2"
+            PTHREAD_LIBS="-lpthread"
             AC_SUBST([PTHREAD_WIN32_DIR_DLL_WIN_FORM])
             AC_SUBST([PTHREAD_WIN32_DIR_DLL])
             AC_SUBST([PTHREAD_INCLUDES])
@@ -136,7 +136,6 @@ AC_DEFUN([OVS_CHECK_WIN32],
       )
 
       AC_DEFINE([WIN32], [1], [Define to 1 if building on WIN32.])
-      AC_CHECK_TYPES([struct timespec], [], [], [[#include <time.h>]])
       AH_BOTTOM([#ifdef WIN32
 #include "include/windows/windefs.h"
 #endif])

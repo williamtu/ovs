@@ -20,6 +20,11 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+#ifdef _WIN32
+#define __USE_MINGW_ANSI_STDIO 1
+#include <stdio.h>
+#endif
+
 #ifndef __has_feature
   #define __has_feature(x) 0
 #endif
@@ -39,8 +44,13 @@
 
 #if __GNUC__ && !__CHECKER__
 #define OVS_UNUSED __attribute__((__unused__))
+#ifdef _WIN32
+#define OVS_PRINTF_FORMAT(FMT, ARG1) __attribute__((__format__(__MINGW_PRINTF_FORMAT, FMT, ARG1)))
+#define OVS_SCANF_FORMAT(FMT, ARG1) __attribute__((__format__(__MINGW_SCANF_FORMAT, FMT, ARG1)))
+#else
 #define OVS_PRINTF_FORMAT(FMT, ARG1) __attribute__((__format__(printf, FMT, ARG1)))
 #define OVS_SCANF_FORMAT(FMT, ARG1) __attribute__((__format__(scanf, FMT, ARG1)))
+#endif
 #define OVS_WARN_UNUSED_RESULT __attribute__((__warn_unused_result__))
 #define OVS_LIKELY(CONDITION) __builtin_expect(!!(CONDITION), 1)
 #define OVS_UNLIKELY(CONDITION) __builtin_expect(!!(CONDITION), 0)

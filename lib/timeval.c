@@ -418,39 +418,6 @@ xgetfiletime(void)
     return current_time;
 }
 
-static int
-clock_gettime(clock_t id, struct timespec *ts)
-{
-    if (id == CLOCK_MONOTONIC) {
-        static LARGE_INTEGER freq;
-        LARGE_INTEGER count;
-        long long int ns;
-
-        if (!freq.QuadPart) {
-            /* Number of counts per second. */
-            QueryPerformanceFrequency(&freq);
-        }
-        /* Total number of counts from a starting point. */
-        QueryPerformanceCounter(&count);
-
-        /* Total nano seconds from a starting point. */
-        ns = (double) count.QuadPart / freq.QuadPart * 1000000000;
-
-        ts->tv_sec = count.QuadPart / freq.QuadPart;
-        ts->tv_nsec = ns % 1000000000;
-    } else if (id == CLOCK_REALTIME) {
-        ULARGE_INTEGER current_time = xgetfiletime();
-
-        /* Time from Epoch to now. */
-        ts->tv_sec = (current_time.QuadPart - unix_epoch) / 10000000;
-        ts->tv_nsec = ((current_time.QuadPart - unix_epoch) %
-                       10000000) * 100;
-    } else {
-        return -1;
-    }
-
-    return 0;
-}
 #endif /* _WIN32 */
 
 #if defined(__MACH__) && !defined(HAVE_CLOCK_GETTIME)

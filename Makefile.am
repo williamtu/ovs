@@ -34,6 +34,10 @@ AM_CFLAGS = -Wstrict-prototypes
 AM_CFLAGS += $(WARNING_FLAGS)
 AM_CFLAGS += $(OVS_CFLAGS)
 
+if WIN32
+AM_CFLAGS += -mno-ms-bitfields
+endif
+
 if DPDK_NETDEV
 AM_CFLAGS += -D_FILE_OFFSET_BITS=64
 DPDKSTRIP_FLAGS = --dpdk
@@ -49,7 +53,7 @@ endif
 AM_CTAGSFLAGS = $(OVS_CTAGS_IDENTIFIERS_LIST)
 
 if WIN32
-psep=";"
+psep=
 else
 psep=":"
 endif

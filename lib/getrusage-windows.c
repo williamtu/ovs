@@ -50,13 +50,13 @@ getrusage(int who, struct rusage *usage)
                       ovs_lasterror_to_string());
             return -1;
         }
-
+#ifndef _WIN32
         if (!GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
             VLOG_ERR("failed at GetProcessMemoryInfo: %s",
                       ovs_lasterror_to_string());
             return -1;
         }
-
+#endif
         usage_to_timeval(&kernel_time, &usage->ru_stime);
         usage_to_timeval(&user_time, &usage->ru_utime);
         usage->ru_majflt = pmc.PageFaultCount;
