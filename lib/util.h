@@ -105,23 +105,6 @@ ovs_prefetch_range(const void *start, size_t size)
 
 #define OVS_NOT_REACHED() abort()
 
-/* Use "%"PRIuSIZE to format size_t with printf(). */
-#ifdef _WIN32
-#define PRIdSIZE "Id"
-#define PRIiSIZE "Ii"
-#define PRIoSIZE "Io"
-#define PRIuSIZE "Iu"
-#define PRIxSIZE "Ix"
-#define PRIXSIZE "IX"
-#else
-#define PRIdSIZE "zd"
-#define PRIiSIZE "zi"
-#define PRIoSIZE "zo"
-#define PRIuSIZE "zu"
-#define PRIxSIZE "zx"
-#define PRIXSIZE "zX"
-#endif
-
 #ifndef _WIN32
 typedef uint32_t HANDLE;
 #endif

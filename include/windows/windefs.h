@@ -53,4 +53,9 @@ char *strsep(char **stringp, const char *delim);
 
 #define EPFNOSUPPORT WSAEPFNOSUPPORT
 
+#ifdef _WIN64
+#define PRIuSIZE PRIu64
+#else
+#define PRIuSIZE PRIu32
+#endif
 #endif /* windefs.h */
