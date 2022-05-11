@@ -1914,6 +1914,12 @@ OvsTunnelAttrToIPTunnelKey(PNL_ATTR attr,
             tunKey->flags |= OVS_TNL_F_GENEVE_OPT;
             hasOpt = 1;
             break;
+        case OVS_TUNNEL_KEY_ATTR_ERSPAN_OPTS:
+            OVS_LOG_INFO("%s: set erspan tunnel key", __func__);
+            // XXX: Support OvsTunnelAttrToErpanOptions
+            tunKey->flags |= OVS_TNL_F_ERSPAN_OPT;
+            hasOpt = 1;
+            break;
         default:
             // XXX: Support OVS_TUNNEL_KEY_ATTR_VXLAN_OPTS
             return STATUS_INVALID_PARAMETER;
@@ -3263,6 +3269,9 @@ OvsTunKeyAttrSize(void)
          + NlAttrTotalSize(0)    /* OVS_TUNNEL_KEY_ATTR_CSUM */
          + NlAttrTotalSize(0)    /* OVS_TUNNEL_KEY_ATTR_OAM */
          + NlAttrTotalSize(256)  /* OVS_TUNNEL_KEY_ATTR_GENEVE_OPTS */
+         /* Mutually exclusive with OVS_TUNNEL_KEY_ATTR_VXLAN_OPTS,
+          * OVS_TUNNEL_KEY_ATTR_ERSPAN_OPTS
+          */
          + NlAttrTotalSize(2)    /* OVS_TUNNEL_KEY_ATTR_TP_SRC */
          + NlAttrTotalSize(2);   /* OVS_TUNNEL_KEY_ATTR_TP_DST */
 }

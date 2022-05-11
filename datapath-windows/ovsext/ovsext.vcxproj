@@ -161,6 +161,7 @@
     <ClInclude Include="Flow.h" />
     <ClInclude Include="Geneve.h" />
     <ClInclude Include="Gre.h" />
+    <ClInclude Include="Erspan.h" />
     <ClInclude Include="IpFragment.h" />
     <ClInclude Include="IpHelper.h" />
     <ClInclude Include="Jhash.h" />

@@ -230,6 +230,7 @@ OvsStartNBLIngress(POVS_SWITCH_CONTEXT switchContext,
 #if (NDIS_SUPPORT_NDIS640)
     PNET_BUFFER_LIST nativeForwardedNbls = NULL;
     PNET_BUFFER_LIST *nextNativeForwardedNbl = &nativeForwardedNbls;
+
 #endif
 
     dispatch = NDIS_TEST_SEND_AT_DISPATCH_LEVEL(SendFlags)?
