@@ -31,22 +31,30 @@ lib_LTLIBRARIES += lib/libopenvswitchavx512.la
 lib_libopenvswitch_la_LIBADD += lib/libopenvswitchavx512.la
 lib_libopenvswitchavx512_la_CFLAGS = \
 	-mavx512f \
-	-mavx512bw \
-	-mavx512dq \
 	-mbmi \
 	-mbmi2 \
 	-fPIC \
 	$(AM_CFLAGS)
 lib_libopenvswitchavx512_la_SOURCES = \
-	lib/cpu.c \
-	lib/cpu.h \
-	lib/dpif-netdev-lookup-avx512-gather.c \
-	lib/dpif-netdev-extract-avx512.c \
 	lib/dpif-netdev-avx512.c
+if HAVE_AVX512BW
+if HAVE_AVX512VL
+lib_libopenvswitchavx512_la_CFLAGS += \
+	-mavx512bw \
+	-mavx512vl
+lib_libopenvswitchavx512_la_SOURCES += \
+	lib/dpif-netdev-extract-avx512.c \
+	lib/dpif-netdev-lookup-avx512-gather.c
+if HAVE_GCC_AVX512VL_GOOD
+lib_libopenvswitchavx512_la_SOURCES += \
+	lib/odp-execute-avx512.c
+endif # HAVE_GCC_AVX512VL_GOOD
+endif # HAVE_AVX512VL
+endif # HAVE_AVX512BW
 lib_libopenvswitchavx512_la_LDFLAGS = \
 	-static
-endif
-endif
+endif # HAVE_LD_AVX512_GOOD
+endif # HAVE_AVX512F
 
 # Build core vswitch libraries as before
 lib_libopenvswitch_la_SOURCES = \
@@ -89,6 +97,8 @@ lib_libopenvswitch_la_SOURCES = \
 	lib/conntrack.h \
 	lib/coverage.c \
 	lib/coverage.h \
+	lib/cpu.c \
+	lib/cpu.h \
 	lib/crc32c.c \
 	lib/crc32c.h \
 	lib/csum.c \
@@ -210,6 +220,8 @@ lib_libopenvswitch_la_SOURCES = \
 	lib/object-collection.h \
 	lib/odp-execute.c \
 	lib/odp-execute.h \
+	lib/odp-execute-private.c \
+	lib/odp-execute-private.h \
 	lib/odp-util.c \
 	lib/odp-util.h \
 	lib/ofp-actions.c \
@@ -576,6 +588,7 @@ MAN_FRAGMENTS += \
 	lib/netdev-dpdk-unixctl.man \
 	lib/dpif-netdev-unixctl.man \
 	lib/dpif-netlink-unixctl.man \
+	lib/odp-execute-unixctl.man \
 	lib/ofp-version.man \
 	lib/ovs.tmac \
 	lib/ovs-replay.man \

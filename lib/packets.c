@@ -427,9 +427,9 @@ add_mpls(struct dp_packet *packet, ovs_be16 ethtype, ovs_be32 lse,
     }
 
     if (!l3_encap) {
-        ovs_be32 *header = dp_packet_push_uninit(packet, MPLS_HLEN);
+        struct mpls_hdr *header = dp_packet_push_uninit(packet, MPLS_HLEN);
 
-        *header = lse;
+        put_16aligned_be32(&header->mpls_lse, lse);
         packet->l2_5_ofs = 0;
         packet->packet_type = PACKET_TYPE_BE(OFPHTN_ETHERTYPE,
                                              ntohs(ethtype));
@@ -1153,7 +1153,7 @@ packet_set_ipv4_addr(struct dp_packet *packet,
  *
  * This function assumes that L3 and L4 offsets are set in the packet. */
 static bool
-packet_rh_present(struct dp_packet *packet, uint8_t *nexthdr)
+packet_rh_present(struct dp_packet *packet, uint8_t *nexthdr, bool *first_frag)
 {
     const struct ovs_16aligned_ip6_hdr *nh;
     size_t len;
@@ -1203,6 +1203,8 @@ packet_rh_present(struct dp_packet *packet, uint8_t *nexthdr)
             const struct ovs_16aligned_ip6_frag *frag_hdr
                 = ALIGNED_CAST(struct ovs_16aligned_ip6_frag *, data);
 
+            *first_frag = !(frag_hdr->ip6f_offlg & IP6F_OFF_MASK) &&
+                           (frag_hdr->ip6f_offlg & IP6F_MORE_FRAG);
             *nexthdr = frag_hdr->ip6f_nxt;
             len = sizeof *frag_hdr;
         } else if (*nexthdr == IPPROTO_ROUTING) {
@@ -1333,18 +1335,20 @@ packet_set_ipv6(struct dp_packet *packet, const struct in6_addr *src,
                 uint8_t key_hl)
 {
     struct ovs_16aligned_ip6_hdr *nh = dp_packet_l3(packet);
+    bool recalc_csum = true;
     uint8_t proto = 0;
     bool rh_present;
 
-    rh_present = packet_rh_present(packet, &proto);
+    rh_present = packet_rh_present(packet, &proto, &recalc_csum);
 
     if (memcmp(&nh->ip6_src, src, sizeof(ovs_be32[4]))) {
-        packet_set_ipv6_addr(packet, proto, nh->ip6_src.be32, src, true);
+        packet_set_ipv6_addr(packet, proto, nh->ip6_src.be32,
+                             src, recalc_csum);
     }
 
     if (memcmp(&nh->ip6_dst, dst, sizeof(ovs_be32[4]))) {
         packet_set_ipv6_addr(packet, proto, nh->ip6_dst.be32, dst,
-                             !rh_present);
+                             !rh_present && recalc_csum);
     }
 
     packet_set_ipv6_tc(&nh->ip6_flow, key_tc);

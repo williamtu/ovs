@@ -38,6 +38,7 @@ Adrian Guzowski                    adrian.guzowski@exatel.pl
 Adrian Moreno                      amorenoz@redhat.com
 Aidan Shribman                     aidan.shribman@gmail.com
 Alan Pevec                         alan.pevec@redhat.com
+Ales Musil                         amusil@redhat.com
 Alessandro Pilotti                 apilotti@cloudbasesolutions.com
 Alexander Duyck                    alexander.h.duyck@redhat.com
 Alexandru Copot                    alex.mihai.c@gmail.com
@@ -183,6 +184,7 @@ Han Ding                           handing@chinatelecom.cn
 Han Zhou                           zhouhan@gmail.com
 Hao Zheng
 Hariprasad Govindharajan           hariprasad.govindharajan@intel.com
+Harold Huang                       baymaxhuang@gmail.com
 Harry Van Haaren                   harry.van.haaren@intel.com
 Helmut Schaa                       helmut.schaa@googlemail.com
 Henry Mai
@@ -212,6 +214,7 @@ Jason Wessel                       jason.wessel@windriver.com
 Jasper Capel                       jasper@capel.tv
 Jean Tourrilhes                    jt@hpl.hp.com
 Jeff Squyres                       jsquyres@cisco.com
+Jeffrey Walton                     noloader@gmail.com
 Jeremy Stribling
 Jeroen van Bemmel                  jvb127@gmail.com
 Jesse Gross                        jesse@kernel.org
@@ -219,6 +222,7 @@ Jian Li                            lijian@ooclab.com
 Jiang Lidong                       jianglidong3@jd.com
 Jianbo Liu                         jianbol@mellanox.com
 Jing Ai                            jinga@google.com
+Jinjun Gao                         gjinjun@gmail.com
 Jiri Benc                          jbenc@redhat.com
 Joe Perches                        joe@perches.com
 Joe Stringer                       joe@ovn.org
@@ -294,6 +298,7 @@ Mauricio Vásquez                   mauricio.vasquezbernal@studenti.polito.it
 Maxime Coquelin                    maxime.coquelin@redhat.com
 Mehak Mahajan
 Michael Arnaldi                    arnaldimichael@gmail.com
+Michael Phelan                     michael.phelan@intel.com
 Michal Kazior                      michal@plume.com
 Michal Weglicki                    michalx.weglicki@intel.com
 Michele Baldessari                 michele@acksyn.org
@@ -368,6 +373,7 @@ RYAN D. MOATS                      rmoats@us.ibm.com
 Ryan Wilson
 Sairam Venugopal                   vsairam@vmware.com
 Sajjad Lateef
+Salem Sol                          salems@nvidia.com
 Saloni Jain                        saloni.jain@tcs.com
 Salvatore Daniele                  sdaniele@redhat.com
 Samuel Ghinet                      sghinet@cloudbasesolutions.com
@@ -378,6 +384,7 @@ Saurabh Shrivastava                saurabh.shrivastava@nuagenetworks.net
 Scott Cheloha                      scottcheloha@gmail.com
 Scott Lowe                         scott.lowe@scottlowe.org
 Scott Mann                         sdmnix@gmail.com
+Seamus Ryan                        seamus.ryan@intel.com
 Selvamuthukumar                    smkumar@merunetworks.com
 Sergey Madaminov                   sergey.madaminov@gmail.com
 Sha Zhang                          zhangsha.zhang@huawei.com
@@ -404,6 +411,7 @@ Sugesh Chandran                    sugesh.chandran@intel.com
 SUGYO Kazushi                      sugyo.org@gmail.com
 Surya Rudra                        rudrasurya.r@altencalsoftlabs.com
 Tadaaki Nagao                      nagao@stratosphere.co.jp
+Tao Liu                            thomas.liu@ucloud.cn
 Tao YunXiang                       taoyunxiang@cmss.chinamobile.com
 Terry Wilson                       twilson@redhat.com
 Tetsuo NAKAGAWA                    nakagawa@mxc.nes.nec.co.jp

@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "cpu.h"
 #include "dp-packet.h"
 #include "dpif-netdev-private-dpcls.h"
 #include "dpif-netdev-private-extract.h"
@@ -32,6 +33,46 @@ VLOG_DEFINE_THIS_MODULE(dpif_netdev_extract);
 
 /* Variable to hold the default MFEX implementation. */
 static ATOMIC(miniflow_extract_func) default_mfex_func;
+
+#if (__x86_64__ && HAVE_AVX512F && HAVE_LD_AVX512_GOOD && HAVE_AVX512BW \
+     && __SSE4_2__)
+static int32_t
+avx512_isa_probe(bool needs_vbmi)
+{
+    static enum ovs_cpu_isa isa_required[] = {
+        OVS_CPU_ISA_X86_AVX512F,
+        OVS_CPU_ISA_X86_AVX512BW,
+        OVS_CPU_ISA_X86_BMI2,
+    };
+
+    for (uint32_t i = 0; i < ARRAY_SIZE(isa_required); i++) {
+        if (!cpu_has_isa(isa_required[i])) {
+            return -ENOTSUP;
+        }
+    }
+
+    if (needs_vbmi && !cpu_has_isa(OVS_CPU_ISA_X86_AVX512VBMI)) {
+        return -ENOTSUP;
+    }
+
+    return 0;
+}
+
+/* Probe functions to check ISA requirements. */
+static int32_t
+mfex_avx512_probe(void)
+{
+    return avx512_isa_probe(false);
+}
+
+#if HAVE_AVX512VBMI
+static int32_t
+mfex_avx512_vbmi_probe(void)
+{
+    return avx512_isa_probe(true);
+}
+#endif
+#endif
 
 /* Implementations of available extract options and
  * the implementations are always in order of preference.
@@ -54,46 +95,97 @@ static struct dpif_miniflow_extract_impl mfex_impls[] = {
         .name = "study", },
 
 /* Compile in implementations only if the compiler ISA checks pass. */
-#if (__x86_64__ && HAVE_AVX512F && HAVE_LD_AVX512_GOOD && __SSE4_2__)
-    [MFEX_IMPL_VMBI_IPv4_UDP] = {
+#if (__x86_64__ && HAVE_AVX512F && HAVE_LD_AVX512_GOOD && HAVE_AVX512BW \
+     && __SSE4_2__)
+#if HAVE_AVX512VBMI
+    [MFEX_IMPL_VBMI_IPv4_UDP] = {
         .probe = mfex_avx512_vbmi_probe,
         .extract_func = mfex_avx512_vbmi_ip_udp,
         .name = "avx512_vbmi_ipv4_udp", },
-
+#endif
     [MFEX_IMPL_IPv4_UDP] = {
         .probe = mfex_avx512_probe,
         .extract_func = mfex_avx512_ip_udp,
         .name = "avx512_ipv4_udp", },
-
-    [MFEX_IMPL_VMBI_IPv4_TCP] = {
+#if HAVE_AVX512VBMI
+    [MFEX_IMPL_VBMI_IPv4_TCP] = {
         .probe = mfex_avx512_vbmi_probe,
         .extract_func = mfex_avx512_vbmi_ip_tcp,
         .name = "avx512_vbmi_ipv4_tcp", },
-
+#endif
     [MFEX_IMPL_IPv4_TCP] = {
         .probe = mfex_avx512_probe,
         .extract_func = mfex_avx512_ip_tcp,
         .name = "avx512_ipv4_tcp", },
-
-    [MFEX_IMPL_VMBI_DOT1Q_IPv4_UDP] = {
+#if HAVE_AVX512VBMI
+    [MFEX_IMPL_VBMI_DOT1Q_IPv4_UDP] = {
         .probe = mfex_avx512_vbmi_probe,
         .extract_func = mfex_avx512_vbmi_dot1q_ip_udp,
         .name = "avx512_vbmi_dot1q_ipv4_udp", },
-
+#endif
     [MFEX_IMPL_DOT1Q_IPv4_UDP] = {
         .probe = mfex_avx512_probe,
         .extract_func = mfex_avx512_dot1q_ip_udp,
         .name = "avx512_dot1q_ipv4_udp", },
-
-    [MFEX_IMPL_VMBI_DOT1Q_IPv4_TCP] = {
+#if HAVE_AVX512VBMI
+    [MFEX_IMPL_VBMI_DOT1Q_IPv4_TCP] = {
         .probe = mfex_avx512_vbmi_probe,
         .extract_func = mfex_avx512_vbmi_dot1q_ip_tcp,
         .name = "avx512_vbmi_dot1q_ipv4_tcp", },
-
+#endif
     [MFEX_IMPL_DOT1Q_IPv4_TCP] = {
         .probe = mfex_avx512_probe,
         .extract_func = mfex_avx512_dot1q_ip_tcp,
-        .name = "avx512_dot1q_ipv4_tcp", },
+        .name = "avx512_dot1q_ipv4_tcp",
+    },
+#if HAVE_AVX512VBMI
+    [MFEX_IMPL_VBMI_IPv6_UDP] = {
+        .probe = mfex_avx512_vbmi_probe,
+        .extract_func = mfex_avx512_vbmi_ipv6_udp,
+        .name = "avx512_vbmi_ipv6_udp",
+    },
+#endif
+    [MFEX_IMPL_IPv6_UDP] = {
+        .probe = mfex_avx512_probe,
+        .extract_func = mfex_avx512_ipv6_udp,
+        .name = "avx512_ipv6_udp",
+    },
+#if HAVE_AVX512VBMI
+    [MFEX_IMPL_VBMI_IPv6_TCP] = {
+        .probe = mfex_avx512_vbmi_probe,
+        .extract_func = mfex_avx512_vbmi_ipv6_tcp,
+        .name = "avx512_vbmi_ipv6_tcp",
+    },
+#endif
+    [MFEX_IMPL_IPv6_TCP] = {
+        .probe = mfex_avx512_probe,
+        .extract_func = mfex_avx512_ipv6_tcp,
+        .name = "avx512_ipv6_tcp",
+    },
+#if HAVE_AVX512VBMI
+    [MFEX_IMPL_VBMI_DOT1Q_IPv6_TCP] = {
+        .probe = mfex_avx512_vbmi_probe,
+        .extract_func = mfex_avx512_vbmi_dot1q_ipv6_tcp,
+        .name = "avx512_vbmi_avx512_dot1q_ipv6_tcp",
+    },
+#endif
+    [MFEX_IMPL_DOT1Q_IPv6_TCP] = {
+        .probe = mfex_avx512_probe,
+        .extract_func = mfex_avx512_dot1q_ipv6_tcp,
+        .name = "avx512_dot1q_ipv6_tcp",
+    },
+#if HAVE_AVX512VBMI
+    [MFEX_IMPL_VBMI_DOT1Q_IPv6_UDP] = {
+        .probe = mfex_avx512_vbmi_probe,
+        .extract_func = mfex_avx512_vbmi_dot1q_ipv6_udp,
+        .name = "avx512_vbmi_avx512_dot1q_ipv6_udp",
+    },
+#endif
+    [MFEX_IMPL_DOT1Q_IPv6_UDP] = {
+        .probe = mfex_avx512_probe,
+        .extract_func = mfex_avx512_dot1q_ipv6_udp,
+        .name = "avx512_dot1q_ipv6_udp",
+    },
 #endif
 };
 

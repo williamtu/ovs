@@ -23,7 +23,6 @@
 #include "dpif-netdev-lookup.h"
 
 #include "cmap.h"
-#include "cpu.h"
 #include "flow.h"
 #include "pvector.h"
 #include "openvswitch/vlog.h"
@@ -78,22 +77,26 @@ _mm512_popcnt_epi64_manual(__m512i v_in)
     return _mm512_sad_epu8(v_u8_pop, _mm512_setzero_si512());
 }
 
-/* Wrapper function required to enable ISA. First enable the ISA via the
- * attribute target for this function, then check if the compiler actually
- * #defines the ISA itself. If the ISA is not #define-ed by the compiler it
- * indicates the compiler is too old or is not capable of compiling the
- * requested ISA level, so fallback to the integer manual implementation.
+/* Wrapper function required to enable ISA. First check if the compiler
+ * supports the ISA itself. If the ISA is supported, enable it via the
+ * attribute target.  If the ISA is not supported by the compiler it indicates
+ * the compiler is too old or is not capable of compiling the requested ISA
+ * level, so fallback to the integer manual implementation.
  */
+#if HAVE_AVX512VPOPCNTDQ
 static inline __m512i
 __attribute__((__target__("avx512vpopcntdq")))
 _mm512_popcnt_epi64_wrapper(__m512i v_in)
 {
-#ifdef __AVX512VPOPCNTDQ__
     return _mm512_popcnt_epi64(v_in);
-#else
-    return _mm512_popcnt_epi64_manual(v_in);
-#endif
 }
+#else
+static inline __m512i
+_mm512_popcnt_epi64_wrapper(__m512i v_in)
+{
+    return _mm512_popcnt_epi64_manual(v_in);
+}
+#endif
 
 static inline uint64_t
 netdev_rule_matches_key(const struct dpcls_rule *rule,
@@ -155,7 +158,7 @@ netdev_rule_matches_key(const struct dpcls_rule *rule,
 static inline ALWAYS_INLINE __m512i
 avx512_blocks_gather(__m512i v_u0,
                      __m512i v_u1,
-                     const uint64_t *pkt_blocks,
+                     const void *pkt_blocks,
                      const void *tbl_blocks,
                      const void *tbl_mf_masks,
                      __mmask64 u1_bcast_msk,
@@ -334,6 +337,19 @@ avx512_lookup_impl(struct dpcls_subtable *subtable,
     return found_map;
 }
 
+/* Use a different pattern to conditionally use the VPOPCNTDQ target attribute
+ * here.
+ * The usual pattern using a '#if HAVE_AVX512VPOPCNTDQ' type check won't work
+ * inside a macro.
+ * Define VPOPCNTDQ_TARGET which will either be the "avx512vpopcntdq" target
+ * attribute or nothing depending on AVX512VPOPCNTDQ support in the compiler.
+ */
+#if HAVE_AVX512VPOPCNTDQ
+#define VPOPCNTDQ_TARGET __attribute__((__target__("avx512vpopcntdq")))
+#else
+#define VPOPCNTDQ_TARGET
+#endif
+
 /* Expand out specialized functions with U0 and U1 bit attributes. As the
  * AVX512 vpopcnt instruction is not supported on all AVX512 capable CPUs,
  * create two functions for each miniflow signature. This allows the runtime
@@ -351,7 +367,7 @@ avx512_lookup_impl(struct dpcls_subtable *subtable,
                                   U0, U1, use_vpop);                          \
     }                                                                         \
                                                                               \
-    static uint32_t __attribute__((__target__("avx512vpopcntdq")))            \
+    static uint32_t VPOPCNTDQ_TARGET                                          \
     dpcls_avx512_gather_mf_##U0##_##U1##_vpop(struct dpcls_subtable *subtable,\
                                        uint32_t keys_map,                     \
                                        const struct netdev_flow_key *keys[],  \
@@ -396,17 +412,10 @@ dpcls_avx512_gather_mf_any(struct dpcls_subtable *subtable, uint32_t keys_map,
 }
 
 dpcls_subtable_lookup_func
-dpcls_subtable_avx512_gather_probe(uint32_t u0_bits, uint32_t u1_bits)
+dpcls_subtable_avx512_gather_probe__(uint32_t u0_bits, uint32_t u1_bits,
+                                     bool use_vpop)
 {
     dpcls_subtable_lookup_func f = NULL;
-
-    int avx512f_available = cpu_has_isa(OVS_CPU_ISA_X86_AVX512F);
-    int bmi2_available = cpu_has_isa(OVS_CPU_ISA_X86_BMI2);
-    if (!avx512f_available || !bmi2_available) {
-        return NULL;
-    }
-
-    int use_vpop = cpu_has_isa(OVS_CPU_ISA_X86_VPOPCNTDQ);
 
     CHECK_LOOKUP_FUNCTION(9, 4, use_vpop);
     CHECK_LOOKUP_FUNCTION(9, 1, use_vpop);

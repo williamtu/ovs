@@ -1019,6 +1019,8 @@ miniflow_extract(struct dp_packet *packet, struct miniflow *dst)
                     miniflow_push_be16(mf, ct_tp_dst, ct_tp_dst);
                     if (dl_type == htons(ETH_TYPE_IP)) {
                         dp_packet_update_rss_hash_ipv4_tcp_udp(packet);
+                    } else if (dl_type == htons(ETH_TYPE_IPV6)) {
+                        dp_packet_update_rss_hash_ipv6_tcp_udp(packet);
                     }
                 }
             }
@@ -1032,6 +1034,8 @@ miniflow_extract(struct dp_packet *packet, struct miniflow *dst)
                 miniflow_push_be16(mf, ct_tp_dst, ct_tp_dst);
                 if (dl_type == htons(ETH_TYPE_IP)) {
                     dp_packet_update_rss_hash_ipv4_tcp_udp(packet);
+                } else if (dl_type == htons(ETH_TYPE_IPV6)) {
+                    dp_packet_update_rss_hash_ipv6_tcp_udp(packet);
                 }
             }
         } else if (OVS_LIKELY(nw_proto == IPPROTO_SCTP)) {
@@ -1956,7 +1960,7 @@ flow_wildcards_init_for_packet(struct flow_wildcards *wc,
     }
 
     /* IPv4 or IPv6. */
-    WC_MASK_FIELD(wc, nw_frag);
+    WC_MASK_FIELD_MASK(wc, nw_frag, FLOW_NW_FRAG_MASK);
     WC_MASK_FIELD(wc, nw_tos);
     WC_MASK_FIELD(wc, nw_ttl);
     WC_MASK_FIELD(wc, nw_proto);

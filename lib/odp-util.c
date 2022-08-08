@@ -3431,16 +3431,16 @@ format_eth(struct ds *ds, const char *name, const struct eth_addr key,
 
 static void
 format_be64(struct ds *ds, const char *name, ovs_be64 key,
-            const ovs_be64 *mask, bool verbose)
+            const ovs_32aligned_be64 *mask_, bool verbose)
 {
-    bool mask_empty = mask && !*mask;
+    ovs_be64 mask = mask_ ? get_32aligned_be64(mask_) : htonll(0);
 
-    if (verbose || !mask_empty) {
-        bool mask_full = !mask || *mask == OVS_BE64_MAX;
+    if (verbose || mask) {
+        bool mask_full = !mask_ || mask == OVS_BE64_MAX;
 
         ds_put_format(ds, "%s=0x%"PRIx64, name, ntohll(key));
         if (!mask_full) { /* Partially masked. */
-            ds_put_format(ds, "/%#"PRIx64, ntohll(*mask));
+            ds_put_format(ds, "/%#"PRIx64, ntohll(mask));
         }
         ds_put_char(ds, ',');
     }
@@ -7192,7 +7192,8 @@ parse_8021q_onward(const struct nlattr *attrs[OVS_KEY_ATTR_MAX + 1],
                    uint64_t present_attrs, int out_of_range_attr,
                    uint64_t expected_attrs, struct flow *flow,
                    const struct nlattr *key, size_t key_len,
-                   const struct flow *src_flow, char **errorp)
+                   const struct flow *src_flow, char **errorp,
+                   bool ignore_vlan_limit)
 {
     static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(1, 5);
     bool is_mask = src_flow != flow;
@@ -7200,9 +7201,11 @@ parse_8021q_onward(const struct nlattr *attrs[OVS_KEY_ATTR_MAX + 1],
     const struct nlattr *encap;
     enum odp_key_fitness encap_fitness;
     enum odp_key_fitness fitness = ODP_FIT_ERROR;
+    int vlan_limit;
     int encaps = 0;
 
-    while (encaps < flow_vlan_limit &&
+    vlan_limit = ignore_vlan_limit ? FLOW_MAX_VLAN_HEADERS : flow_vlan_limit;
+    while (encaps < vlan_limit &&
            (is_mask
             ? (src_flow->vlans[encaps].tci & htons(VLAN_CFI)) != 0
             : eth_type_vlan(flow->dl_type))) {
@@ -7263,6 +7266,14 @@ parse_8021q_onward(const struct nlattr *attrs[OVS_KEY_ATTR_MAX + 1],
         }
         expected_attrs = 0;
 
+        /* For OVS to be backward compatible with newer datapath
+         * implementations, we should ignore out of range attributes. */
+        if (out_of_range_attr) {
+            VLOG_DBG("Flow key decode found unknown OVS_KEY_ATTR, %d",
+                     out_of_range_attr);
+            out_of_range_attr = 0;
+        }
+
         if (!parse_ethertype(attrs, present_attrs, &expected_attrs,
                              flow, src_flow, errorp)) {
             return ODP_FIT_ERROR;
@@ -7285,7 +7296,7 @@ parse_8021q_onward(const struct nlattr *attrs[OVS_KEY_ATTR_MAX + 1],
 static enum odp_key_fitness
 odp_flow_key_to_flow__(const struct nlattr *key, size_t key_len,
                        struct flow *flow, const struct flow *src_flow,
-                       char **errorp)
+                       char **errorp, bool ignore_vlan_limit)
 {
     /* New "struct flow" fields that are visible to the datapath (including all
      * data fields) should be translated from equivalent datapath flow fields
@@ -7311,6 +7322,14 @@ odp_flow_key_to_flow__(const struct nlattr *key, size_t key_len,
         goto exit;
     }
     expected_attrs = 0;
+
+    /* For OVS to be backward compatible with newer datapath implementations,
+     * we should ignore out of range attributes. */
+    if (out_of_range_attr) {
+        VLOG_DBG("Flow key decode found unknown OVS_KEY_ATTR, %d",
+                 out_of_range_attr);
+        out_of_range_attr = 0;
+    }
 
     /* Metadata. */
     if (present_attrs & (UINT64_C(1) << OVS_KEY_ATTR_RECIRC_ID)) {
@@ -7435,7 +7454,7 @@ odp_flow_key_to_flow__(const struct nlattr *key, size_t key_len,
         : eth_type_vlan(src_flow->dl_type)) {
         fitness = parse_8021q_onward(attrs, present_attrs, out_of_range_attr,
                                      expected_attrs, flow, key, key_len,
-                                     src_flow, errorp);
+                                     src_flow, errorp, ignore_vlan_limit);
     } else {
         if (is_mask) {
             /* A missing VLAN mask means exact match on vlan_tci 0 (== no
@@ -7501,7 +7520,7 @@ enum odp_key_fitness
 odp_flow_key_to_flow(const struct nlattr *key, size_t key_len,
                      struct flow *flow, char **errorp)
 {
-    return odp_flow_key_to_flow__(key, key_len, flow, flow, errorp);
+    return odp_flow_key_to_flow__(key, key_len, flow, flow, errorp, false);
 }
 
 /* Converts the 'mask_key_len' bytes of OVS_KEY_ATTR_* attributes in 'mask_key'
@@ -7513,14 +7532,16 @@ odp_flow_key_to_flow(const struct nlattr *key, size_t key_len,
  * If 'errorp' is nonnull, this function uses it for detailed error reports: if
  * the return value is ODP_FIT_ERROR, it stores a malloc()'d error string in
  * '*errorp', otherwise NULL. */
-enum odp_key_fitness
-odp_flow_key_to_mask(const struct nlattr *mask_key, size_t mask_key_len,
-                     struct flow_wildcards *mask, const struct flow *src_flow,
-                     char **errorp)
+static enum odp_key_fitness
+odp_flow_key_to_mask__(const struct nlattr *mask_key, size_t mask_key_len,
+                       struct flow_wildcards *mask,
+                       const struct flow *src_flow,
+                       char **errorp, bool ignore_vlan_limit)
 {
     if (mask_key_len) {
         return odp_flow_key_to_flow__(mask_key, mask_key_len,
-                                      &mask->masks, src_flow, errorp);
+                                      &mask->masks, src_flow, errorp,
+                                      ignore_vlan_limit);
     } else {
         if (errorp) {
             *errorp = NULL;
@@ -7534,6 +7555,15 @@ odp_flow_key_to_mask(const struct nlattr *mask_key, size_t mask_key_len,
     }
 }
 
+enum odp_key_fitness
+odp_flow_key_to_mask(const struct nlattr *mask_key, size_t mask_key_len,
+                     struct flow_wildcards *mask,
+                     const struct flow *src_flow, char **errorp)
+{
+    return odp_flow_key_to_mask__(mask_key, mask_key_len, mask, src_flow,
+                                  errorp, false);
+}
+
 /* Converts the netlink formated key/mask to match.
  * Fails if odp_flow_key_from_key/mask and odp_flow_key_key/mask
  * disagree on the acceptable form of flow */
@@ -7544,12 +7574,15 @@ parse_key_and_mask_to_match(const struct nlattr *key, size_t key_len,
 {
     enum odp_key_fitness fitness;
 
-    fitness = odp_flow_key_to_flow(key, key_len, &match->flow, NULL);
+    fitness = odp_flow_key_to_flow__(key, key_len, &match->flow, &match->flow,
+                                     NULL, true);
     if (fitness) {
-        /* This should not happen: it indicates that
-         * odp_flow_key_from_flow() and odp_flow_key_to_flow() disagree on
-         * the acceptable form of a flow.  Log the problem as an error,
-         * with enough details to enable debugging. */
+        /* This will happen when the odp_flow_key_to_flow() function can't
+         * parse the netlink message to a match structure.  It will return
+         * ODP_FIT_TOO_LITTLE if there is not enough information to parse the
+         * content successfully, ODP_FIT_TOO_MUCH if there is too much netlink
+         * data and we do not know how to safely ignore it, and ODP_FIT_ERROR
+         * in any other case. */
         static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(1, 5);
 
         if (!VLOG_DROP_ERR(&rl)) {
@@ -7557,20 +7590,18 @@ parse_key_and_mask_to_match(const struct nlattr *key, size_t key_len,
 
             ds_init(&s);
             odp_flow_format(key, key_len, NULL, 0, NULL, &s, true);
-            VLOG_ERR("internal error parsing flow key %s", ds_cstr(&s));
+            VLOG_ERR("internal error parsing flow key %s (%s)",
+                     ds_cstr(&s), odp_key_fitness_to_string(fitness));
             ds_destroy(&s);
         }
 
         return EINVAL;
     }
 
-    fitness = odp_flow_key_to_mask(mask, mask_len, &match->wc, &match->flow,
-                                   NULL);
+    fitness = odp_flow_key_to_mask__(mask, mask_len, &match->wc, &match->flow,
+                                     NULL, true);
     if (fitness) {
-        /* This should not happen: it indicates that
-         * odp_flow_key_from_mask() and odp_flow_key_to_mask()
-         * disagree on the acceptable form of a mask.  Log the problem
-         * as an error, with enough details to enable debugging. */
+        /* This should not happen, see comment above. */
         static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(1, 5);
 
         if (!VLOG_DROP_ERR(&rl)) {

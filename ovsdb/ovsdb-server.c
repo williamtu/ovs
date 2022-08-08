@@ -80,7 +80,7 @@ static char *ssl_ciphers;
 static bool bootstrap_ca_cert;
 
 /* Try to reclaim heap memory back to system after DB compaction. */
-static bool trim_memory = false;
+static bool trim_memory = true;
 
 static unixctl_cb_func ovsdb_server_exit;
 static unixctl_cb_func ovsdb_server_compact;
@@ -116,6 +116,8 @@ static unixctl_cb_func ovsdb_server_list_remotes;
 static unixctl_cb_func ovsdb_server_add_database;
 static unixctl_cb_func ovsdb_server_remove_database;
 static unixctl_cb_func ovsdb_server_list_databases;
+static unixctl_cb_func ovsdb_server_tlog_set;
+static unixctl_cb_func ovsdb_server_tlog_list;
 
 static void read_db(struct server_config *, struct db *);
 static struct ovsdb_error *open_db(struct server_config *,
@@ -250,7 +252,9 @@ main_loop(struct server_config *config,
                 remove_db(config, node,
                           xasprintf("removing database %s because storage "
                                     "disconnected permanently", node->name));
-            } else if (ovsdb_storage_should_snapshot(db->db->storage)) {
+            } else if (!ovsdb_snapshot_in_progress(db->db)
+                       && (ovsdb_storage_should_snapshot(db->db->storage) ||
+                           ovsdb_snapshot_ready(db->db))) {
                 log_and_free_error(ovsdb_snapshot(db->db, trim_memory));
             }
         }
@@ -285,6 +289,7 @@ main_loop(struct server_config *config,
             ovsdb_trigger_wait(db->db, time_msec());
             ovsdb_storage_wait(db->db->storage);
             ovsdb_storage_read_wait(db->db->storage);
+            ovsdb_snapshot_wait(db->db);
         }
         if (run_process) {
             process_wait(run_process);
@@ -444,6 +449,10 @@ main(int argc, char *argv[])
                              ovsdb_server_remove_database, &server_config);
     unixctl_command_register("ovsdb-server/list-dbs", "", 0, 0,
                              ovsdb_server_list_databases, &all_dbs);
+    unixctl_command_register("ovsdb-server/tlog-set", "DB:TABLE on|off",
+                             2, 2, ovsdb_server_tlog_set, &all_dbs);
+    unixctl_command_register("ovsdb-server/tlog-list", "",
+                             0, 0, ovsdb_server_tlog_list, &all_dbs);
     unixctl_command_register("ovsdb-server/perf-counters-show", "", 0, 0,
                              ovsdb_server_perf_counters_show, NULL);
     unixctl_command_register("ovsdb-server/perf-counters-clear", "", 0, 0,
@@ -1546,11 +1555,20 @@ ovsdb_server_compact(struct unixctl_conn *conn, int argc,
             ? !strcmp(node->name, db_name)
             : node->name[0] != '_') {
             if (db->db) {
+                struct ovsdb_error *error = NULL;
+
                 VLOG_INFO("compacting %s database by user request",
                           node->name);
 
-                struct ovsdb_error *error = ovsdb_snapshot(db->db,
-                                                           trim_memory);
+                error = ovsdb_snapshot(db->db, trim_memory);
+                if (!error && ovsdb_snapshot_in_progress(db->db)) {
+                    while (ovsdb_snapshot_in_progress(db->db)) {
+                        ovsdb_snapshot_wait(db->db);
+                        poll_block();
+                    }
+                    error = ovsdb_snapshot(db->db, trim_memory);
+                }
+
                 if (error) {
                     char *s = ovsdb_error_to_string(error);
                     ds_put_format(&reply, "%s\n", s);
@@ -1769,6 +1787,87 @@ ovsdb_server_list_databases(struct unixctl_conn *conn, int argc OVS_UNUSED,
         }
     }
     free(nodes);
+
+    unixctl_command_reply(conn, ds_cstr(&s));
+    ds_destroy(&s);
+}
+
+static void
+ovsdb_server_tlog_set(struct unixctl_conn *conn, int argc OVS_UNUSED,
+                      const char *argv[], void *all_dbs_)
+{
+    struct shash *all_dbs = all_dbs_;
+    const char *name_ = argv[1];
+    const char *command = argv[2];
+    bool log;
+
+    if (!strcasecmp(command, "on")) {
+        log = true;
+    } else if (!strcasecmp(command, "off")) {
+        log = false;
+    } else {
+        unixctl_command_reply_error(conn, "invalid command argument");
+        return;
+    }
+
+    char *name = xstrdup(name_);
+    char *save_ptr = NULL;
+
+    const char *db_name = strtok_r(name, ":", &save_ptr); /* "DB" */
+    const char *tbl_name = strtok_r(NULL, ":", &save_ptr); /* "TABLE" */
+    if (!db_name || !tbl_name || strtok_r(NULL, ":", &save_ptr)) {
+        unixctl_command_reply_error(conn, "invalid DB:TABLE argument");
+        goto out;
+    }
+
+    struct db *db = shash_find_data(all_dbs, db_name);
+    if (!db) {
+        unixctl_command_reply_error(conn, "no such database");
+        goto out;
+    }
+
+    struct ovsdb_table *table = ovsdb_get_table(db->db, tbl_name);
+    if (!table) {
+        unixctl_command_reply_error(conn, "no such table");
+        goto out;
+    }
+
+    ovsdb_table_logging_enable(table, log);
+    unixctl_command_reply(conn, NULL);
+out:
+    free(name);
+}
+
+static void
+ovsdb_server_tlog_list(struct unixctl_conn *conn, int argc OVS_UNUSED,
+                       const char *argv[] OVS_UNUSED, void *all_dbs_)
+{
+    const struct shash_node **db_nodes;
+    struct ds s = DS_EMPTY_INITIALIZER;
+    struct shash *all_dbs = all_dbs_;
+
+    ds_put_cstr(&s, "database        table                       logging\n");
+    ds_put_cstr(&s, "--------        -----                       -------\n");
+
+    db_nodes = shash_sort(all_dbs);
+    for (size_t i = 0; i < shash_count(all_dbs); i++) {
+        const struct shash_node *db_node = db_nodes[i];
+        struct db *db = db_node->data;
+        if (db->db) {
+            const struct shash_node **tbl_nodes = shash_sort(&db->db->tables);
+
+            ds_put_format(&s, "%-16s \n", db_node->name);
+            for (size_t j = 0; j < shash_count(&db->db->tables); j++) {
+                const char *logging_enabled =
+                    ovsdb_table_is_logging_enabled(tbl_nodes[j]->data)
+                    ? "ON" : "OFF";
+                ds_put_format(&s, "                %-27s %s\n",
+                              tbl_nodes[j]->name, logging_enabled);
+            }
+            free(tbl_nodes);
+        }
+    }
+    free(db_nodes);
 
     unixctl_command_reply(conn, ds_cstr(&s));
     ds_destroy(&s);

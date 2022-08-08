@@ -143,8 +143,7 @@ ovsdb_row_clone(const struct ovsdb_row *old)
     SHASH_FOR_EACH (node, &table->schema->columns) {
         const struct ovsdb_column *column = node->data;
         ovsdb_datum_clone(&new->fields[column->index],
-                          &old->fields[column->index],
-                          &column->type);
+                          &old->fields[column->index]);
     }
 
     struct ovsdb_weak_ref *weak, *clone;
@@ -155,6 +154,23 @@ ovsdb_row_clone(const struct ovsdb_row *old)
     }
     return new;
 }
+
+struct ovsdb_row *
+ovsdb_row_datum_clone(const struct ovsdb_row *old)
+{
+    const struct ovsdb_table *table = old->table;
+    const struct shash_node *node;
+    struct ovsdb_row *new;
+
+    new = allocate_row(table);
+    SHASH_FOR_EACH (node, &table->schema->columns) {
+        const struct ovsdb_column *column = node->data;
+        ovsdb_datum_clone(&new->fields[column->index],
+                          &old->fields[column->index]);
+    }
+    return new;
+}
+
 
 /* The caller is responsible for ensuring that 'row' has been removed from its
  * table and that it is not participating in a transaction. */
@@ -257,8 +273,7 @@ ovsdb_row_update_columns(struct ovsdb_row *dst,
         } else {
             ovsdb_datum_destroy(&dst->fields[column->index], &column->type);
             ovsdb_datum_clone(&dst->fields[column->index],
-                              &src->fields[column->index],
-                              &column->type);
+                              &src->fields[column->index]);
         }
     }
     return NULL;
@@ -342,6 +357,23 @@ ovsdb_row_to_json(const struct ovsdb_row *row,
         put_json_column(json, row, columns->columns[i]);
     }
     return json;
+}
+
+void
+ovsdb_row_to_string(const struct ovsdb_row *row, struct ds *out)
+{
+    struct shash_node *node;
+
+    SHASH_FOR_EACH (node, &row->table->schema->columns) {
+        const struct ovsdb_column *column = node->data;
+
+        ds_put_format(out, "%s:", column->name);
+        ovsdb_datum_to_string(&row->fields[column->index], &column->type, out);
+        ds_put_char(out, ',');
+    }
+    if (shash_count(&row->table->schema->columns)) {
+        ds_chomp(out, ',');
+    }
 }
 
 void

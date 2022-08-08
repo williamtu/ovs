@@ -93,6 +93,7 @@ void ovsdb_weak_ref_destroy(struct ovsdb_weak_ref *);
 
 struct ovsdb_row *ovsdb_row_create(const struct ovsdb_table *);
 struct ovsdb_row *ovsdb_row_clone(const struct ovsdb_row *);
+struct ovsdb_row *ovsdb_row_datum_clone(const struct ovsdb_row *);
 void ovsdb_row_destroy(struct ovsdb_row *);
 
 uint32_t ovsdb_row_hash_columns(const struct ovsdb_row *,
@@ -117,6 +118,7 @@ struct ovsdb_error *ovsdb_row_from_json(struct ovsdb_row *,
     OVS_WARN_UNUSED_RESULT;
 struct json *ovsdb_row_to_json(const struct ovsdb_row *,
                                const struct ovsdb_column_set *include);
+void ovsdb_row_to_string(const struct ovsdb_row *, struct ds *);
 
 static inline const struct uuid *
 ovsdb_row_get_uuid(const struct ovsdb_row *row)

@@ -1848,6 +1848,8 @@ destruct(struct ofproto *ofproto_, bool del)
 
     seq_destroy(ofproto->ams_seq);
 
+    /* Wait for all the meter destroy work to finish. */
+    ovsrcu_barrier();
     close_dpif_backer(ofproto->backer, del);
 }
 
@@ -2337,6 +2339,7 @@ set_ipfix(
     struct dpif_ipfix *di = ofproto->ipfix;
     bool has_options = bridge_exporter_options || flow_exporters_options;
     bool new_di = false;
+    bool options_changed = false;
 
     if (has_options && !di) {
         di = ofproto->ipfix = dpif_ipfix_create();
@@ -2346,7 +2349,7 @@ set_ipfix(
     if (di) {
         /* Call set_options in any case to cleanly flush the flow
          * caches in the last exporters that are to be destroyed. */
-        dpif_ipfix_set_options(
+        options_changed = dpif_ipfix_set_options(
             di, bridge_exporter_options, flow_exporters_options,
             n_flow_exporters_options);
 
@@ -2363,9 +2366,7 @@ set_ipfix(
             ofproto->ipfix = NULL;
         }
 
-        /* TODO: need to consider ipfix option changes more than
-         * enable/disable */
-        if (new_di || !ofproto->ipfix) {
+        if (new_di || options_changed) {
             ofproto->backer->need_revalidate = REV_RECONFIGURE;
         }
     }
@@ -2490,11 +2491,11 @@ set_lldp(struct ofport *ofport_,
 {
     struct ofport_dpif *ofport = ofport_dpif_cast(ofport_);
     struct ofproto_dpif *ofproto = ofproto_dpif_cast(ofport->up.ofproto);
+    bool old_enable = lldp_is_enabled(ofport->lldp);
     int error = 0;
 
-    if (cfg) {
+    if (cfg && !smap_is_empty(cfg)) {
         if (!ofport->lldp) {
-            ofproto->backer->need_revalidate = REV_RECONFIGURE;
             ofport->lldp = lldp_create(ofport->up.netdev, ofport_->mtu, cfg);
         }
 
@@ -2506,6 +2507,9 @@ set_lldp(struct ofport *ofport_,
     } else if (ofport->lldp) {
         lldp_unref(ofport->lldp);
         ofport->lldp = NULL;
+    }
+
+    if (lldp_is_enabled(ofport->lldp) != old_enable) {
         ofproto->backer->need_revalidate = REV_RECONFIGURE;
     }
 

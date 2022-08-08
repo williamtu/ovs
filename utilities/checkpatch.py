@@ -194,12 +194,12 @@ skip_signoff_check = False
 #
 # Python isn't checked as flake8 performs these checks during build.
 line_length_ignore_list = re.compile(
-    r'\.(am|at|etc|in|m4|mk|patch|py)$|debian/rules')
+    r'\.(am|at|etc|in|m4|mk|patch|py)$|^debian/.*$')
 
 # Don't enforce a requirement that leading whitespace be all spaces on
 # files that include these characters in their name, since these kinds
 # of files need lines with leading tabs.
-leading_whitespace_ignore_list = re.compile(r'\.(mk|am|at)$|debian/rules')
+leading_whitespace_ignore_list = re.compile(r'\.(mk|am|at)$|^debian/.*$')
 
 
 def is_subtracted_line(line):
@@ -620,6 +620,10 @@ def regex_error_factory(description):
     return lambda: print_error(description)
 
 
+def regex_warn_factory(description):
+    return lambda: print_warning(description)
+
+
 std_functions = [
         ('malloc', 'Use xmalloc() in place of malloc()'),
         ('calloc', 'Use xcalloc() in place of calloc()'),
@@ -636,6 +640,7 @@ std_functions = [
         ('assert', 'Use ovs_assert() in place of assert()'),
         ('error', 'Use ovs_error() in place of error()'),
 ]
+
 checks += [
     {'regex': r'(\.c|\.h)(\.in)?$',
      'match_name': None,
@@ -643,6 +648,21 @@ checks += [
      'check': regex_function_factory(function_name),
      'print': regex_error_factory(description)}
     for (function_name, description) in std_functions]
+
+easy_to_misuse_api = [
+        ('ovsrcu_barrier',
+            'lib/ovs-rcu.c',
+            'Are you sure you need to use ovsrcu_barrier(), '
+            'in most cases ovsrcu_synchronize() will be fine?'),
+        ]
+
+checks += [
+    {'regex': r'(\.c)(\.in)?$',
+     'match_name': lambda x: x != location,
+     'prereq': lambda x: not is_comment_line(x),
+     'check': regex_function_factory(function_name),
+     'print': regex_warn_factory(description)}
+    for (function_name, location, description) in easy_to_misuse_api]
 
 
 def regex_operator_factory(operator):
@@ -676,12 +696,22 @@ def get_file_type_checks(filename):
     global checks
     checkList = []
     for check in checks:
+        regex_check = True
+        match_check = True
+
         if check['regex'] is None and check['match_name'] is None:
             checkList.append(check)
+            continue
+
         if check['regex'] is not None and \
-           re.compile(check['regex']).search(filename) is not None:
-            checkList.append(check)
-        elif check['match_name'] is not None and check['match_name'](filename):
+           re.compile(check['regex']).search(filename) is None:
+            regex_check = False
+
+        if check['match_name'] is not None and \
+                not check['match_name'](filename):
+            match_check = False
+
+        if regex_check and match_check:
             checkList.append(check)
     return checkList
 
@@ -763,6 +793,8 @@ def ovs_checkpatch_parse(text, filename, author=None, committer=None):
                               re.I | re.M | re.S)
     is_gerrit_change_id = re.compile(r'(\s*(change-id: )(.*))$',
                                      re.I | re.M | re.S)
+    is_fixes = re.compile(r'(\s*(Fixes:)(.*))$', re.I | re.M | re.S)
+    is_fixes_exact = re.compile(r'^Fixes: [0-9a-f]{12} \(".*"\)$')
 
     tags_typos = {
         r'^Acked by:': 'Acked-by:',
@@ -864,6 +896,13 @@ def ovs_checkpatch_parse(text, filename, author=None, committer=None):
                   not skip_gerrit_change_id_check):
                 print_error(
                     "Remove Gerrit Change-Id's before submitting upstream.")
+                print("%d: %s\n" % (lineno, line))
+            elif is_fixes.match(line) and not is_fixes_exact.match(line):
+                print_error('"Fixes" tag is malformed.\n'
+                            'Use the following format:\n'
+                            '  git log -1 '
+                            '--pretty=format:"Fixes: %h (\\\"%s\\\")" '
+                            '--abbrev=12 COMMIT_REF\n')
                 print("%d: %s\n" % (lineno, line))
             elif spellcheck:
                 check_spelling(line, False)

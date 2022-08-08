@@ -498,9 +498,20 @@ ovsdb_idl_get_memory_usage(struct ovsdb_idl *idl, struct simap *usage)
         cells += n_rows * n_columns;
     }
 
-    simap_increase(usage, "idl-cells", cells);
-    simap_increase(usage, "idl-outstanding-txns",
-                   hmap_count(&idl->outstanding_txns));
+    struct {
+        const char *name;
+        unsigned int val;
+    } idl_mem_stats[] = {
+        {"idl-outstanding-txns", hmap_count(&idl->outstanding_txns)},
+        {"idl-cells", cells},
+    };
+
+    for (size_t i = 0; i < ARRAY_SIZE(idl_mem_stats); i++) {
+        char *stat_name = xasprintf("%s-%s", idl_mem_stats[i].name,
+                                             idl->class_->database);
+        simap_increase(usage, stat_name, idl_mem_stats[i].val);
+        free(stat_name);
+    }
 }
 
 /* Returns a "sequence number" that represents the state of 'idl'.  When
@@ -1077,7 +1088,7 @@ ovsdb_idl_condition_add_clause__(struct ovsdb_idl_condition *condition,
     struct ovsdb_idl_clause *clause = xmalloc(sizeof *clause);
     clause->function = src->function;
     clause->column = src->column;
-    ovsdb_datum_clone(&clause->arg, &src->arg, &src->column->type);
+    ovsdb_datum_clone(&clause->arg, &src->arg);
     hmap_insert(&condition->clauses, &clause->hmap_node, hash);
 }
 
@@ -1117,12 +1128,14 @@ ovsdb_idl_condition_add_clause(struct ovsdb_idl_condition *condition,
         struct ovsdb_idl_clause clause = {
             .function = function,
             .column = column,
-            .arg = *arg,
         };
+        ovsdb_datum_clone(&clause.arg, arg);
+
         uint32_t hash = ovsdb_idl_clause_hash(&clause);
         if (!ovsdb_idl_condition_find_clause(condition, &clause, hash)) {
             ovsdb_idl_condition_add_clause__(condition, &clause, hash);
         }
+        ovsdb_datum_destroy(&clause.arg, &column->type);
     }
 }
 
@@ -1232,7 +1245,7 @@ ovsdb_idl_row_get_seqno(const struct ovsdb_idl_row *row,
 /* Turns on OVSDB_IDL_TRACK for 'column' in 'idl', ensuring that
  * all rows whose 'column' is modified are traced. Similarly, insert
  * or delete of rows having 'column' are tracked. Clients are able
- * to retrive the tracked rows with the ovsdb_idl_track_get_*()
+ * to retrieve the tracked rows with the ovsdb_idl_track_get_*()
  * functions.
  *
  * This function should be called between ovsdb_idl_create() and
@@ -3600,7 +3613,7 @@ ovsdb_idl_txn_write__(const struct ovsdb_idl_row *row_,
     if (owns_datum) {
         row->new_datum[column_idx] = *datum;
     } else {
-        ovsdb_datum_clone(&row->new_datum[column_idx], datum, &column->type);
+        ovsdb_datum_clone(&row->new_datum[column_idx], datum);
     }
     (column->unparse)(row);
     (column->parse)(row, &row->new_datum[column_idx]);
@@ -3639,8 +3652,7 @@ ovsdb_idl_txn_write(const struct ovsdb_idl_row *row,
                     const struct ovsdb_idl_column *column,
                     struct ovsdb_datum *datum)
 {
-    ovsdb_datum_sort_unique(datum,
-                            column->type.key.type, column->type.value.type);
+    ovsdb_datum_sort_unique(datum, &column->type);
     ovsdb_idl_txn_write__(row, column, datum, true);
 }
 

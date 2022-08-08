@@ -93,7 +93,8 @@ VLOG_DEFINE_THIS_MODULE(dpif_netdev);
 /* Auto Load Balancing Defaults */
 #define ALB_IMPROVEMENT_THRESHOLD    25
 #define ALB_LOAD_THRESHOLD           95
-#define ALB_REBALANCE_INTERVAL       1 /* 1 Min */
+#define ALB_REBALANCE_INTERVAL       1     /* 1 Min */
+#define MAX_ALB_REBALANCE_INTERVAL   20000 /* 20000 Min */
 #define MIN_TO_MSEC                  60000
 
 #define FLOW_DUMP_MAX_BATCH 50
@@ -638,11 +639,6 @@ static void dp_netdev_simple_match_remove(struct dp_netdev_pmd_thread *pmd,
     OVS_REQUIRES(pmd->flow_mutex);
 
 static bool dp_netdev_flow_is_simple_match(const struct match *);
-static bool dp_netdev_simple_match_enabled(const struct dp_netdev_pmd_thread *,
-                                           odp_port_t in_port);
-static struct dp_netdev_flow *dp_netdev_simple_match_lookup(
-    const struct dp_netdev_pmd_thread *,
-    odp_port_t in_port, ovs_be16 dp_type, uint8_t nw_frag, ovs_be16 vlan_tci);
 
 /* Updates the time in PMD threads context and should be called in three cases:
  *
@@ -1606,6 +1602,9 @@ dpif_netdev_init(void)
                              2, 2, dpif_netdev_subtable_lookup_set,
                              NULL);
     unixctl_command_register("dpif-netdev/subtable-lookup-info-get", "",
+                             0, 0, dpif_netdev_subtable_lookup_get,
+                             NULL);
+    unixctl_command_register("dpif-netdev/subtable-lookup-prio-get", NULL,
                              0, 0, dpif_netdev_subtable_lookup_get,
                              NULL);
     unixctl_command_register("dpif-netdev/dpif-impl-set",
@@ -3869,7 +3868,7 @@ dp_netdev_get_mega_ufid(const struct match *match, ovs_u128 *mega_ufid)
     odp_flow_key_hash(&masked_flow, sizeof masked_flow, mega_ufid);
 }
 
-static uint64_t
+uint64_t
 dp_netdev_simple_match_mark(odp_port_t in_port, ovs_be16 dl_type,
                             uint8_t nw_frag, ovs_be16 vlan_tci)
 {
@@ -3909,7 +3908,7 @@ dp_netdev_simple_match_mark(odp_port_t in_port, ovs_be16 dl_type,
            | (OVS_FORCE uint16_t) (vlan_tci & htons(VLAN_VID_MASK | VLAN_CFI));
 }
 
-static struct dp_netdev_flow *
+struct dp_netdev_flow *
 dp_netdev_simple_match_lookup(const struct dp_netdev_pmd_thread *pmd,
                               odp_port_t in_port, ovs_be16 dl_type,
                               uint8_t nw_frag, ovs_be16 vlan_tci)
@@ -3930,7 +3929,7 @@ dp_netdev_simple_match_lookup(const struct dp_netdev_pmd_thread *pmd,
     return found ? flow : NULL;
 }
 
-static bool
+bool
 dp_netdev_simple_match_enabled(const struct dp_netdev_pmd_thread *pmd,
                                odp_port_t in_port)
 {
@@ -4766,8 +4765,8 @@ dpif_netdev_set_config(struct dpif *dpif, const struct smap *other_config)
     uint32_t insert_min, cur_min;
     uint32_t tx_flush_interval, cur_tx_flush_interval;
     uint64_t rebalance_intvl;
-    uint8_t rebalance_load, cur_rebalance_load;
-    uint8_t rebalance_improve;
+    uint8_t cur_rebalance_load;
+    uint32_t rebalance_load, rebalance_improve;
     bool log_autolb = false;
     enum sched_assignment_type pmd_rxq_assign_type;
 
@@ -4868,8 +4867,12 @@ dpif_netdev_set_config(struct dpif *dpif, const struct smap *other_config)
 
     struct pmd_auto_lb *pmd_alb = &dp->pmd_alb;
 
-    rebalance_intvl = smap_get_int(other_config, "pmd-auto-lb-rebal-interval",
-                                   ALB_REBALANCE_INTERVAL);
+    rebalance_intvl = smap_get_ullong(other_config,
+                                      "pmd-auto-lb-rebal-interval",
+                                      ALB_REBALANCE_INTERVAL);
+    if (rebalance_intvl > MAX_ALB_REBALANCE_INTERVAL) {
+        rebalance_intvl = ALB_REBALANCE_INTERVAL;
+    }
 
     /* Input is in min, convert it to msec. */
     rebalance_intvl =
@@ -4882,21 +4885,21 @@ dpif_netdev_set_config(struct dpif *dpif, const struct smap *other_config)
         log_autolb = true;
     }
 
-    rebalance_improve = smap_get_int(other_config,
-                                     "pmd-auto-lb-improvement-threshold",
-                                     ALB_IMPROVEMENT_THRESHOLD);
+    rebalance_improve = smap_get_uint(other_config,
+                                      "pmd-auto-lb-improvement-threshold",
+                                      ALB_IMPROVEMENT_THRESHOLD);
     if (rebalance_improve > 100) {
         rebalance_improve = ALB_IMPROVEMENT_THRESHOLD;
     }
     if (rebalance_improve != pmd_alb->rebalance_improve_thresh) {
         pmd_alb->rebalance_improve_thresh = rebalance_improve;
         VLOG_INFO("PMD auto load balance improvement threshold set to "
-                  "%"PRIu8"%%", rebalance_improve);
+                  "%"PRIu32"%%", rebalance_improve);
         log_autolb = true;
     }
 
-    rebalance_load = smap_get_int(other_config, "pmd-auto-lb-load-threshold",
-                                  ALB_LOAD_THRESHOLD);
+    rebalance_load = smap_get_uint(other_config, "pmd-auto-lb-load-threshold",
+                                   ALB_LOAD_THRESHOLD);
     if (rebalance_load > 100) {
         rebalance_load = ALB_LOAD_THRESHOLD;
     }
@@ -4904,7 +4907,7 @@ dpif_netdev_set_config(struct dpif *dpif, const struct smap *other_config)
     if (rebalance_load != cur_rebalance_load) {
         atomic_store_relaxed(&pmd_alb->rebalance_load_thresh,
                              rebalance_load);
-        VLOG_INFO("PMD auto load balance load threshold set to %"PRIu8"%%",
+        VLOG_INFO("PMD auto load balance load threshold set to %"PRIu32"%%",
                   rebalance_load);
         log_autolb = true;
     }
@@ -5744,28 +5747,43 @@ compare_rxq_cycles(const void *a, const void *b)
     }
 }
 
+static bool
+sched_pmd_new_lowest(struct sched_pmd *current_lowest, struct sched_pmd *pmd,
+                     bool has_proc)
+{
+    uint64_t current_num, pmd_num;
+
+    if (current_lowest == NULL) {
+        return true;
+    }
+
+    if (has_proc) {
+        current_num = current_lowest->pmd_proc_cycles;
+        pmd_num = pmd->pmd_proc_cycles;
+    } else {
+        current_num = current_lowest->n_rxq;
+        pmd_num = pmd->n_rxq;
+    }
+
+    if (pmd_num < current_num) {
+        return true;
+    }
+    return false;
+}
+
 static struct sched_pmd *
 sched_pmd_get_lowest(struct sched_numa *numa, bool has_cyc)
 {
     struct sched_pmd *lowest_sched_pmd = NULL;
-    uint64_t lowest_num = UINT64_MAX;
 
     for (unsigned i = 0; i < numa->n_pmds; i++) {
         struct sched_pmd *sched_pmd;
-        uint64_t pmd_num;
 
         sched_pmd = &numa->pmds[i];
         if (sched_pmd->isolated) {
             continue;
         }
-        if (has_cyc) {
-            pmd_num = sched_pmd->pmd_proc_cycles;
-        } else {
-            pmd_num = sched_pmd->n_rxq;
-        }
-
-        if (pmd_num < lowest_num) {
-            lowest_num = pmd_num;
+        if (sched_pmd_new_lowest(lowest_sched_pmd, sched_pmd, has_cyc)) {
             lowest_sched_pmd = sched_pmd;
         }
     }
@@ -5970,7 +5988,7 @@ sched_numa_list_schedule(struct sched_numa_list *numa_list,
         struct dp_netdev_rxq *rxq = rxqs[i];
         struct sched_pmd *sched_pmd = NULL;
         struct sched_numa *numa;
-        int numa_id;
+        int port_numa_id;
         uint64_t proc_cycles;
         char rxq_cyc_log[MAX_RXQ_CYC_STRLEN];
 
@@ -5982,9 +6000,11 @@ sched_numa_list_schedule(struct sched_numa_list *numa_list,
 
         /* Store the cycles for this rxq as we will log these later. */
         proc_cycles = dp_netdev_rxq_get_cycles(rxq, RXQ_CYCLES_PROC_HIST);
-        /* Select the numa that should be used for this rxq. */
-        numa_id = netdev_get_numa_id(rxq->port->netdev);
-        numa = sched_numa_list_lookup(numa_list, numa_id);
+
+        port_numa_id = netdev_get_numa_id(rxq->port->netdev);
+
+        /* Select numa. */
+        numa = sched_numa_list_lookup(numa_list, port_numa_id);
 
         /* Check if numa has no PMDs or no non-isolated PMDs. */
         if (!numa || !sched_numa_noniso_pmd_count(numa)) {
@@ -6002,35 +6022,40 @@ sched_numa_list_schedule(struct sched_numa_list *numa_list,
         }
 
         if (numa) {
-            if (numa->numa_id != numa_id) {
+            /* Select the PMD that should be used for this rxq. */
+            sched_pmd = sched_pmd_next(numa, algo,
+                                       proc_cycles ? true : false);
+        }
+
+        /* Check that a pmd has been selected. */
+        if (sched_pmd) {
+            int pmd_numa_id;
+
+            pmd_numa_id = sched_pmd->numa->numa_id;
+            /* Check if selected pmd numa matches port numa. */
+            if (pmd_numa_id != port_numa_id) {
                 VLOG(level, "There's no available (non-isolated) pmd thread "
                             "on numa node %d. Port \'%s\' rx queue %d will "
                             "be assigned to a pmd on numa node %d. "
                             "This may lead to reduced performance.",
-                            numa_id, netdev_rxq_get_name(rxq->rx),
-                            netdev_rxq_get_queue_id(rxq->rx), numa->numa_id);
+                            port_numa_id, netdev_rxq_get_name(rxq->rx),
+                            netdev_rxq_get_queue_id(rxq->rx), pmd_numa_id);
             }
-
-            /* Select the PMD that should be used for this rxq. */
-            sched_pmd = sched_pmd_next(numa, algo, proc_cycles ? true : false);
-            if (sched_pmd) {
-                VLOG(level, "Core %2u on numa node %d assigned port \'%s\' "
-                            "rx queue %d%s.",
-                            sched_pmd->pmd->core_id, sched_pmd->pmd->numa_id,
-                            netdev_rxq_get_name(rxq->rx),
-                            netdev_rxq_get_queue_id(rxq->rx),
-                            get_rxq_cyc_log(rxq_cyc_log, algo, proc_cycles));
-                sched_pmd_add_rxq(sched_pmd, rxq, proc_cycles);
-            }
-        }
-        if (!sched_pmd) {
+            VLOG(level, "Core %2u on numa node %d assigned port \'%s\' "
+                        "rx queue %d%s.",
+                        sched_pmd->pmd->core_id, sched_pmd->pmd->numa_id,
+                        netdev_rxq_get_name(rxq->rx),
+                        netdev_rxq_get_queue_id(rxq->rx),
+                        get_rxq_cyc_log(rxq_cyc_log, algo, proc_cycles));
+            sched_pmd_add_rxq(sched_pmd, rxq, proc_cycles);
+        } else  {
             VLOG(level == VLL_DBG ? level : VLL_WARN,
-                    "No non-isolated pmd on any numa available for "
-                    "port \'%s\' rx queue %d%s. "
-                    "This rx queue will not be polled.",
-                    netdev_rxq_get_name(rxq->rx),
-                    netdev_rxq_get_queue_id(rxq->rx),
-                    get_rxq_cyc_log(rxq_cyc_log, algo, proc_cycles));
+                 "No non-isolated pmd on any numa available for "
+                 "port \'%s\' rx queue %d%s. "
+                 "This rx queue will not be polled.",
+                 netdev_rxq_get_name(rxq->rx),
+                 netdev_rxq_get_queue_id(rxq->rx),
+                 get_rxq_cyc_log(rxq_cyc_log, algo, proc_cycles));
         }
     }
     free(rxqs);
@@ -7493,6 +7518,7 @@ dp_netdev_destroy_pmd(struct dp_netdev_pmd_thread *pmd)
     seq_destroy(pmd->reload_seq);
     ovs_mutex_destroy(&pmd->port_mutex);
     ovs_mutex_destroy(&pmd->bond_mutex);
+    free(pmd->netdev_input_func_userdata);
     free(pmd);
 }
 
@@ -9232,7 +9258,8 @@ dpif_netdev_ct_get_limits(struct dpif *dpif,
             czl = zone_limit_get(dp->conntrack, zone_limit->zone);
             if (czl.zone == zone_limit->zone || czl.zone == DEFAULT_ZONE) {
                 ct_dpif_push_zone_limit(zone_limits_reply, zone_limit->zone,
-                                        czl.limit, czl.count);
+                                        czl.limit,
+                                        atomic_count_get(&czl.count));
             } else {
                 return EINVAL;
             }
@@ -9242,7 +9269,7 @@ dpif_netdev_ct_get_limits(struct dpif *dpif,
             czl = zone_limit_get(dp->conntrack, z);
             if (czl.zone == z) {
                 ct_dpif_push_zone_limit(zone_limits_reply, z, czl.limit,
-                                        czl.count);
+                                        atomic_count_get(&czl.count));
             }
         }
     }

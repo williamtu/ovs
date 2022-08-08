@@ -81,15 +81,40 @@ enum dpif_miniflow_extract_impl_idx {
     MFEX_IMPL_AUTOVALIDATOR,
     MFEX_IMPL_SCALAR,
     MFEX_IMPL_STUDY,
-#if (__x86_64__ && HAVE_AVX512F && HAVE_LD_AVX512_GOOD && __SSE4_2__)
-    MFEX_IMPL_VMBI_IPv4_UDP,
+#if (__x86_64__ && HAVE_AVX512F && HAVE_LD_AVX512_GOOD && HAVE_AVX512BW \
+     && __SSE4_2__)
+#if HAVE_AVX512VBMI
+    MFEX_IMPL_VBMI_IPv4_UDP,
+#endif
     MFEX_IMPL_IPv4_UDP,
-    MFEX_IMPL_VMBI_IPv4_TCP,
+#if HAVE_AVX512VBMI
+    MFEX_IMPL_VBMI_IPv4_TCP,
+#endif
     MFEX_IMPL_IPv4_TCP,
-    MFEX_IMPL_VMBI_DOT1Q_IPv4_UDP,
+#if HAVE_AVX512VBMI
+    MFEX_IMPL_VBMI_DOT1Q_IPv4_UDP,
+#endif
     MFEX_IMPL_DOT1Q_IPv4_UDP,
-    MFEX_IMPL_VMBI_DOT1Q_IPv4_TCP,
+#if HAVE_AVX512VBMI
+    MFEX_IMPL_VBMI_DOT1Q_IPv4_TCP,
+#endif
     MFEX_IMPL_DOT1Q_IPv4_TCP,
+#if HAVE_AVX512VBMI
+    MFEX_IMPL_VBMI_IPv6_UDP,
+#endif
+    MFEX_IMPL_IPv6_UDP,
+#if HAVE_AVX512VBMI
+    MFEX_IMPL_VBMI_IPv6_TCP,
+#endif
+    MFEX_IMPL_IPv6_TCP,
+#if HAVE_AVX512VBMI
+    MFEX_IMPL_VBMI_DOT1Q_IPv6_TCP,
+#endif
+    MFEX_IMPL_DOT1Q_IPv6_TCP,
+#if HAVE_AVX512VBMI
+    MFEX_IMPL_VBMI_DOT1Q_IPv6_UDP,
+#endif
+    MFEX_IMPL_DOT1Q_IPv6_UDP,
 #endif
     MFEX_IMPL_MAX
 };
@@ -99,9 +124,15 @@ extern struct ovs_mutex dp_netdev_mutex;
 /* Define a index which points to the first traffic optimized MFEX
  * option from the enum list else holds max value.
  */
-#if (__x86_64__ && HAVE_AVX512F && HAVE_LD_AVX512_GOOD && __SSE4_2__)
+#if (__x86_64__ && HAVE_AVX512F && HAVE_LD_AVX512_GOOD && HAVE_AVX512BW \
+     && __SSE4_2__)
 
-#define MFEX_IMPL_START_IDX MFEX_IMPL_VMBI_IPv4_UDP
+#if HAVE_AVX512VBMI
+#define MFEX_IMPL_START_IDX MFEX_IMPL_VBMI_IPv4_UDP
+#else
+#define MFEX_IMPL_START_IDX MFEX_IMPL_IPv4_UDP
+#endif
+
 #else
 
 #define MFEX_IMPL_START_IDX MFEX_IMPL_MAX
@@ -176,10 +207,8 @@ mfex_study_traffic(struct dp_packet_batch *packets,
 int
 mfex_set_study_pkt_cnt(uint32_t pkt_cmp_count, const char *name);
 
-/* AVX512 MFEX Probe and Implementations functions. */
+/* AVX512 MFEX Implementation functions. */
 #ifdef __x86_64__
-int32_t mfex_avx512_probe(void);
-int32_t mfex_avx512_vbmi_probe(void);
 
 #define DECLARE_AVX512_MFEX_PROTOTYPE(name)                                 \
     uint32_t                                                                \
@@ -197,6 +226,10 @@ DECLARE_AVX512_MFEX_PROTOTYPE(ip_udp);
 DECLARE_AVX512_MFEX_PROTOTYPE(ip_tcp);
 DECLARE_AVX512_MFEX_PROTOTYPE(dot1q_ip_udp);
 DECLARE_AVX512_MFEX_PROTOTYPE(dot1q_ip_tcp);
+DECLARE_AVX512_MFEX_PROTOTYPE(ipv6_udp);
+DECLARE_AVX512_MFEX_PROTOTYPE(ipv6_tcp);
+DECLARE_AVX512_MFEX_PROTOTYPE(dot1q_ipv6_tcp);
+DECLARE_AVX512_MFEX_PROTOTYPE(dot1q_ipv6_udp);
 
 #endif /* __x86_64__ */
 

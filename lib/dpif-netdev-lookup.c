@@ -18,9 +18,25 @@
 #include <errno.h>
 #include "dpif-netdev-lookup.h"
 
+#include "cpu.h"
 #include "openvswitch/vlog.h"
 
 VLOG_DEFINE_THIS_MODULE(dpif_netdev_lookup);
+
+#if (__x86_64__ && HAVE_AVX512F && HAVE_LD_AVX512_GOOD && HAVE_AVX512BW \
+     && __SSE4_2__)
+static dpcls_subtable_lookup_func
+dpcls_subtable_avx512_gather_probe(uint32_t u0_bits, uint32_t u1_bits)
+{
+    if (!cpu_has_isa(OVS_CPU_ISA_X86_AVX512F)
+        || !cpu_has_isa(OVS_CPU_ISA_X86_BMI2)) {
+        return NULL;
+    }
+
+    return dpcls_subtable_avx512_gather_probe__(u0_bits, u1_bits,
+        cpu_has_isa(OVS_CPU_ISA_X86_VPOPCNTDQ));
+}
+#endif
 
 /* Actual list of implementations goes here */
 static struct dpcls_subtable_lookup_info_t subtable_lookups[] = {
@@ -45,7 +61,8 @@ static struct dpcls_subtable_lookup_info_t subtable_lookups[] = {
       .name = "generic",
       .usage_cnt = ATOMIC_COUNT_INIT(0), },
 
-#if (__x86_64__ && HAVE_AVX512F && HAVE_LD_AVX512_GOOD && __SSE4_2__)
+#if (__x86_64__ && HAVE_AVX512F && HAVE_LD_AVX512_GOOD && HAVE_AVX512BW \
+     && __SSE4_2__)
     /* Only available on x86_64 bit builds with SSE 4.2 used for OVS core. */
     { .prio = 0,
       .probe = dpcls_subtable_avx512_gather_probe,
